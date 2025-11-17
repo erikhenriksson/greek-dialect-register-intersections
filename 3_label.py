@@ -27,8 +27,8 @@ os.makedirs("./cache/spacy", exist_ok=True)
 INPUT_FILE = "/scratch/project_2002026/data/hplt3_samples/ell_Grek_1M.jsonl"
 OUTPUT_FILE = "labeled_sentences.jsonl"
 MODEL_PATH = "./greek_dialect_model"
-BATCH_SIZE = 128  # Increased from 32 for better GPU utilization
-MAX_LENGTH = 512  # Reduced from 8192 - sentences are typically much shorter
+BATCH_SIZE = 256  # Increased from 32 for better GPU utilization
+MAX_LENGTH = 256  # Reduced from 8192 - sentences are typically much shorter
 REGISTER_THRESHOLD = 0.4
 
 print("=" * 60)
