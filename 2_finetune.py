@@ -41,7 +41,7 @@ def count_greek_chars(text):
 def remove_punctuation(text):
     """Remove ALL punctuation from text to avoid spurious correlations"""
     # Remove common punctuation marks but keep spaces
-    punctuation = r"[.!;·?,\-—–\"'(){}[\]:«»"""'']"
+    punctuation = r'[.!;·?,\-—–"\'(){}[\]:«»"""' "]"
     text = re.sub(punctuation, "", text)
     # Normalize whitespace
     text = re.sub(r"\s+", " ", text)
@@ -57,7 +57,7 @@ def split_into_uniform_chunks(text, target_chunk_size=400, min_chunk_size=200):
     """
     Split text into uniform-sized chunks by character count.
     This ensures all dialects have similar-length samples regardless of punctuation.
-    
+
     Args:
         text: Input text
         target_chunk_size: Target characters per chunk (default 400)
@@ -65,16 +65,16 @@ def split_into_uniform_chunks(text, target_chunk_size=400, min_chunk_size=200):
     """
     text = text.strip()
     text_len = len(text)
-    
+
     if text_len < min_chunk_size:
         return [text] if text else []
-    
+
     chunks = []
     start = 0
-    
+
     while start < text_len:
         end = start + target_chunk_size
-        
+
         # If this would be the last chunk and it's too small, extend previous chunk
         if end >= text_len:
             chunk = text[start:].strip()
@@ -87,20 +87,20 @@ def split_into_uniform_chunks(text, target_chunk_size=400, min_chunk_size=200):
                 # First and only chunk that's smaller than min_chunk_size
                 chunks.append(chunk)
             break
-        
+
         # Try to find a space near the boundary to avoid splitting words
         search_start = max(start, end - 50)
         space_pos = text.rfind(" ", search_start, end + 50)
-        
+
         if space_pos != -1 and space_pos > start:
             end = space_pos
-        
+
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
-        
+
         start = end
-    
+
     return chunks
 
 
@@ -156,7 +156,7 @@ for filepath in standard_greek_files:
 
             # Remove punctuation
             line = remove_punctuation(line)
-            
+
             # Check if valid
             if is_valid_chunk(line):
                 # Split into uniform chunks if text is long
@@ -183,25 +183,25 @@ for dialect_name, filepath in dialect_files.items():
         # Process line by line for all dialects
         for line in content.split("\n"):
             line = line.strip()
-            
+
             # Skip metadata lines
             if line.startswith("---") or "---" in line:
                 dialect_skipped += 1
                 continue
-            
+
             if not line:
                 continue
-            
+
             # Remove punctuation (critical for normalization!)
             line = remove_punctuation(line)
-            
+
             if not line:
                 dialect_skipped += 1
                 continue
-            
+
             # Split into uniform chunks
             chunks = split_into_uniform_chunks(line)
-            
+
             for chunk in chunks:
                 if is_valid_chunk(chunk):
                     texts.append(chunk)
@@ -244,7 +244,7 @@ for dialect in all_dialects:
 
 # Define target counts for each dialect
 TARGET_STANDARD = 200_000  # Majority class
-TARGET_DIALECT = 20_000    # Same for all dialects
+TARGET_DIALECT = 20_000  # Same for all dialects
 
 targets = {
     "standard": TARGET_STANDARD,
@@ -265,7 +265,7 @@ for dialect in all_dialects:
     indices = dialect_indices[dialect]
     target = targets[dialect]
     current = len(indices)
-    
+
     if current >= target:
         # Downsample
         sampled = random.sample(indices, target)
@@ -273,8 +273,10 @@ for dialect in all_dialects:
     else:
         # Upsample by sampling with replacement
         sampled = random.choices(indices, k=target)
-        print(f"\n{dialect}: Upsampling from {current:,} to {target:,} (with replacement)")
-    
+        print(
+            f"\n{dialect}: Upsampling from {current:,} to {target:,} (with replacement)"
+        )
+
     balanced_indices.extend(sampled)
 
 # Shuffle all indices
@@ -330,11 +332,11 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Load model in bfloat16
 model = AutoModelForSequenceClassification.from_pretrained(
-    model_name, 
-    num_labels=len(unique_labels), 
-    id2label=id2label, 
+    model_name,
+    num_labels=len(unique_labels),
+    id2label=id2label,
     label2id=label2id,
-    torch_dtype=torch.bfloat16
+    torch_dtype=torch.bfloat16,
 )
 print(f"Model loaded in bfloat16 precision for faster training")
 
