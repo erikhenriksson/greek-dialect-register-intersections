@@ -3,7 +3,7 @@ from collections import Counter
 
 register_dialect_counts = Counter()
 
-with open("your_file.jsonl", "r", encoding="utf-8") as f:
+with open("labeled_sentences_chunk_1.jsonl", "r", encoding="utf-8") as f:
     for line in f:
         data = json.loads(line)
 
