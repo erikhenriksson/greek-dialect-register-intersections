@@ -1,35 +1,44 @@
 import json
+import statistics
 from collections import defaultdict
 
-# Store examples for each register-dialect combo
-examples = defaultdict(list)
+# Store all dialect probs for each register
+register_dialect_probs = defaultdict(lambda: defaultdict(list))
 
 with open("labeled_sentences_chunk_1.jsonl", "r", encoding="utf-8") as f:
     for line in f:
         data = json.loads(line)
-
         register = "-".join(data["registers"])
 
         for dialect, prob in data["dialect_probs"].items():
-            if prob >= 0.5:
-                # Store up to 5 examples per combo
-                if len(examples[(register, dialect)]) < 5:
-                    examples[(register, dialect)].append(
-                        {
-                            "text": data["text"],
-                            "prob": prob,
-                            "doc_id": data["doc_id"],
-                            "sent_id": data["sent_id"],
-                        }
-                    )
+            register_dialect_probs[register][dialect].append(prob)
 
-# Print results
-for (register, dialect), example_list in sorted(examples.items()):
+# Analyze distributions
+for register in sorted(register_dialect_probs.keys()):
     print(f"\n{'=' * 80}")
-    print(f"Register: {register} | Dialect: {dialect} | Count: {len(example_list)}")
+    print(f"REGISTER: {register}")
+    print(f"Total sentences: {len(register_dialect_probs[register]['standard'])}")
     print(f"{'=' * 80}")
-    for i, ex in enumerate(example_list, 1):
+
+    for dialect in sorted(register_dialect_probs[register].keys()):
+        probs = register_dialect_probs[register][dialect]
+
+        # Count how many exceed 0.5 threshold
+        above_threshold = sum(1 for p in probs if p >= 0.5)
+        pct_above = (above_threshold / len(probs)) * 100
+
         print(
-            f"\n{i}. [prob={ex['prob']:.3f}, doc={ex['doc_id']}, sent={ex['sent_id']}]"
+            f"\n{dialect:15} | mean={statistics.mean(probs):.4f} | "
+            f"median={statistics.median(probs):.4f} | "
+            f"max={max(probs):.4f}"
         )
-        print(f"   {ex['text'][:200]}...")  # First 200 chars
+        print(f"                | >0.5 threshold: {above_threshold} ({pct_above:.1f}%)")
+
+        # Show distribution of probabilities
+        ranges = [(0, 0.1), (0.1, 0.3), (0.3, 0.5), (0.5, 0.7), (0.7, 0.9), (0.9, 1.0)]
+        dist = [sum(1 for p in probs if low <= p < high) for low, high in ranges]
+        print(f"                | distribution: ", end="")
+        for (low, high), count in zip(ranges, dist):
+            if count > 0:
+                print(f"[{low}-{high}): {count}  ", end="")
+        print()
