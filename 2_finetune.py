@@ -150,31 +150,30 @@ for dialect_name, filepath in dialect_files.items():
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-        # Special handling for Cretan: split into sentences
+        # Special handling for Cretan: split long documents in half
         if dialect_name == "cretan":
-            # Remove metadata lines (lines with --- or similar patterns)
-            lines = content.split("\n")
-            cleaned_lines = []
-            for line in lines:
+            lines = []
+            for line in content.split("\n"):
                 line = line.strip()
                 # Skip metadata lines like "--- cleaned_vakches.txt ---"
                 if line.startswith("---") or "---" in line:
                     dialect_skipped += 1
                     continue
-                if line:
-                    cleaned_lines.append(line)
-
-            # Join and split into sentences
-            full_text = " ".join(cleaned_lines)
-            sentences = split_into_sentences(full_text)
-
-            for sentence in sentences:
-                if is_valid_line(sentence):
-                    texts.append(sentence)
-                    labels.append(dialect_name)
-                    dialect_count += 1
-                else:
+                if is_valid_line(line):
+                    lines.append(line)
+                elif line:
                     dialect_skipped += 1
+
+            print(f"  Found {len(lines)} valid lines before splitting")
+
+            # Split each long document in half
+            for line in lines:
+                chunks = split_long_text_into_chunks(line, target_chunks=2)
+                for chunk in chunks:
+                    if is_valid_line(chunk):
+                        texts.append(chunk)
+                        labels.append(dialect_name)
+                        dialect_count += 1
 
         # Special handling for Pontic: split very long texts to get ~1000 samples
         elif dialect_name == "pontic":
