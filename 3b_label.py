@@ -28,7 +28,7 @@ INPUT_FILE = "/scratch/project_2002026/data/hplt3_samples/ell_Grek_1M.jsonl"
 OUTPUT_FILE = "labeled_sentences.jsonl"
 MODEL_PATH = "./greek_dialect_model"
 BATCH_SIZE = 128  # Increased from 32 for better GPU utilization
-MAX_LENGTH = 512  # Reduced from 8192 - sentences are typically much shorter
+MAX_LENGTH = 256  # Reduced from 8192 - sentences are typically much shorter
 REGISTER_THRESHOLD = 0.4
 
 print("=" * 60)
@@ -42,10 +42,17 @@ print("Set matmul precision to 'high' for TF32 acceleration")
 # Load the fine-tuned model
 print(f"\nLoading model from {MODEL_PATH}...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+
+# Load model in bfloat16 for faster inference (2x speedup, half memory)
+model = AutoModelForSequenceClassification.from_pretrained(
+    MODEL_PATH, torch_dtype=torch.bfloat16
+)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 model.eval()
+
+print(f"Model loaded in bfloat16 precision for faster inference")
 
 # Get label mapping
 id2label = model.config.id2label
