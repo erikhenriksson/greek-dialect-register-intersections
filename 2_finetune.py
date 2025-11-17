@@ -26,6 +26,12 @@ from transformers import (
     TrainingArguments,
 )
 
+# ========== PERFORMANCE OPTIMIZATIONS ==========
+# Use TF32 on Ampere+ GPUs for faster matrix multiplication
+torch.set_float32_matmul_precision("high")
+print("Set matmul precision to 'high' for TF32 acceleration")
+# ================================================
+
 
 def count_greek_chars(text):
     """Count Greek characters in text (including accented characters)"""
@@ -167,8 +173,7 @@ for dialect_name, filepath in dialect_files.items():
             print(f"  Found {len(lines)} valid lines before splitting")
 
             # Calculate how many chunks we need per document to get more data
-            # You can adjust target_total to get the desired amount of Cretan samples
-            target_total = 500  # Adjust this number to get more/less Cretan data
+            target_total = 2000  # Adjust this number to get more/less Cretan data
             chunks_per_doc = max(2, target_total // len(lines)) if len(lines) > 0 else 4
 
             print(
@@ -294,9 +299,17 @@ print(f"\nTrain size: {len(X_train):,}, Test size: {len(X_test):,}")
 model_name = "answerdotai/ModernBERT-large"
 print(f"\nLoading model: {model_name}")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# ========== PERFORMANCE OPTIMIZATION: Load model in bfloat16 ==========
 model = AutoModelForSequenceClassification.from_pretrained(
-    model_name, num_labels=len(unique_labels), id2label=id2label, label2id=label2id
+    model_name,
+    num_labels=len(unique_labels),
+    id2label=id2label,
+    label2id=label2id,
+    torch_dtype=torch.bfloat16,  # Use bfloat16 for 2x speedup and half memory
 )
+print(f"Model loaded in bfloat16 precision for faster training")
+# ======================================================================
 
 
 # Dataset class
@@ -338,7 +351,7 @@ training_args = TrainingArguments(
     save_strategy="epoch",
     load_best_model_at_end=True,
     metric_for_best_model="accuracy",
-    fp16=True,
+    bf16=True,  # ========== CHANGED: Use bfloat16 instead of fp16 ==========
     report_to="none",
 )
 
