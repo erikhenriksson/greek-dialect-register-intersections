@@ -47,15 +47,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 model.eval()
 
-# Compile model for faster inference (PyTorch 2.0+)
-try:
-    print("Compiling model with torch.compile for faster inference...")
-    model = torch.compile(model, mode="reduce-overhead")
-    print("Model compilation successful!")
-except Exception as e:
-    print(f"Could not compile model (PyTorch 2.0+ required): {e}")
-    print("Continuing without compilation...")
-
 # Get label mapping
 id2label = model.config.id2label
 print(f"Dialects: {list(id2label.values())}")
@@ -118,6 +109,43 @@ def predict_dialects_batch(sentences):
     return results
 
 
+def predict_sentences_sorted_by_length(sentences):
+    """
+    Predict dialects for sentences, using length-based batching for efficiency.
+    Returns predictions in original sentence order.
+    """
+    if not sentences:
+        return []
+
+    # Create list of (index, sentence, length) tuples
+    indexed_sentences = [(i, sent, len(sent)) for i, sent in enumerate(sentences)]
+
+    # Sort by length
+    sorted_sentences = sorted(indexed_sentences, key=lambda x: x[2])
+
+    # Extract just the sentences in sorted order
+    sorted_texts = [sent for _, sent, _ in sorted_sentences]
+
+    # Batch predict on sorted sentences
+    all_predictions = []
+    for i in range(0, len(sorted_texts), BATCH_SIZE):
+        batch = sorted_texts[i : i + BATCH_SIZE]
+        batch_preds = predict_dialects_batch(batch)
+        all_predictions.extend(batch_preds)
+
+    # Create (original_index, prediction) pairs
+    predictions_with_indices = [
+        (orig_idx, pred)
+        for (orig_idx, _, _), pred in zip(sorted_sentences, all_predictions)
+    ]
+
+    # Sort back to original order
+    predictions_with_indices.sort(key=lambda x: x[0])
+
+    # Return just the predictions in original order
+    return [pred for _, pred in predictions_with_indices]
+
+
 # Process documents
 doc_count = 0
 sentence_count = 0
@@ -154,8 +182,8 @@ with (
             if not sentences:
                 continue
 
-            # Batch predict dialects
-            dialect_predictions = predict_dialects_batch(sentences)
+            # Batch predict dialects with length-based sorting for efficiency
+            dialect_predictions = predict_sentences_sorted_by_length(sentences)
 
             # Write results for each sentence
             for sent_id, (sentence_text, dialect_probs) in enumerate(
