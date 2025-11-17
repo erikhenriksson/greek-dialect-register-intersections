@@ -27,7 +27,6 @@ from transformers import (
 )
 
 # ========== PERFORMANCE OPTIMIZATIONS ==========
-# Use TF32 on Ampere+ GPUs for faster matrix multiplication
 torch.set_float32_matmul_precision("high")
 print("Set matmul precision to 'high' for TF32 acceleration")
 # ================================================
@@ -35,64 +34,73 @@ print("Set matmul precision to 'high' for TF32 acceleration")
 
 def count_greek_chars(text):
     """Count Greek characters in text (including accented characters)"""
-    # Greek Unicode ranges: \u0370-\u03FF (Greek and Coptic), \u1F00-\u1FFF (Greek Extended)
     greek_pattern = re.compile(r"[\u0370-\u03FF\u1F00-\u1FFF]")
     return len(greek_pattern.findall(text))
 
 
-def is_valid_line(text, min_greek_chars=50):
-    """Check if line has at least min_greek_chars Greek characters"""
+def remove_punctuation(text):
+    """Remove ALL punctuation from text to avoid spurious correlations"""
+    # Remove common punctuation marks but keep spaces
+    punctuation = r"[.!;·?,\-—–\"'(){}[\]:«»"""'']"
+    text = re.sub(punctuation, "", text)
+    # Normalize whitespace
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def is_valid_chunk(text, min_greek_chars=50):
+    """Check if chunk has at least min_greek_chars Greek characters"""
     return count_greek_chars(text) >= min_greek_chars
 
 
-def split_into_sentences(text):
-    """Simple sentence splitter for Greek text"""
-    # Split on common sentence endings followed by space or newline
-    sentences = re.split(r"[.!;·]\s+", text)
-    return [s.strip() for s in sentences if s.strip()]
-
-
-def split_long_text_into_chunks(text, target_chunks=2, min_chunk_size=500):
-    """Split long text into chunks. First tries sentences, then falls back to character-based splitting"""
-    sentences = split_into_sentences(text)
-
-    # If we got multiple sentences, use sentence-based splitting
-    if len(sentences) > target_chunks:
-        sentences_per_chunk = max(1, len(sentences) // target_chunks)
-        chunks = []
-        for i in range(0, len(sentences), sentences_per_chunk):
-            chunk = " ".join(sentences[i : i + sentences_per_chunk])
-            if chunk.strip():
-                chunks.append(chunk)
-        return chunks
-
-    # Fall back to character-based splitting for texts without sentence boundaries
+def split_into_uniform_chunks(text, target_chunk_size=400, min_chunk_size=200):
+    """
+    Split text into uniform-sized chunks by character count.
+    This ensures all dialects have similar-length samples regardless of punctuation.
+    
+    Args:
+        text: Input text
+        target_chunk_size: Target characters per chunk (default 400)
+        min_chunk_size: Minimum characters for last chunk (default 200)
+    """
+    text = text.strip()
     text_len = len(text)
-    if text_len < min_chunk_size * target_chunks:
-        # Text too short to split meaningfully
-        return [text]
-
-    chunk_size = text_len // target_chunks
+    
+    if text_len < min_chunk_size:
+        return [text] if text else []
+    
     chunks = []
-
-    for i in range(target_chunks):
-        start = i * chunk_size
-        # Last chunk gets the remainder
-        if i == target_chunks - 1:
-            end = text_len
-        else:
-            end = (i + 1) * chunk_size
-            # Try to find a space near the boundary to avoid splitting words
-            # Look within 50 characters before the boundary
-            search_start = max(start, end - 50)
-            space_pos = text.rfind(" ", search_start, end)
-            if space_pos != -1:
-                end = space_pos
-
+    start = 0
+    
+    while start < text_len:
+        end = start + target_chunk_size
+        
+        # If this would be the last chunk and it's too small, extend previous chunk
+        if end >= text_len:
+            chunk = text[start:].strip()
+            if chunk and len(chunk) >= min_chunk_size:
+                chunks.append(chunk)
+            elif chunks and chunk:
+                # Merge small last chunk with previous chunk
+                chunks[-1] = chunks[-1] + " " + chunk
+            elif chunk:
+                # First and only chunk that's smaller than min_chunk_size
+                chunks.append(chunk)
+            break
+        
+        # Try to find a space near the boundary to avoid splitting words
+        search_start = max(start, end - 50)
+        space_pos = text.rfind(" ", search_start, end + 50)
+        
+        if space_pos != -1 and space_pos > start:
+            end = space_pos
+        
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
-
+        
+        start = end
+    
     return chunks
 
 
@@ -100,7 +108,7 @@ def split_long_text_into_chunks(text, target_chunks=2, min_chunk_size=500):
 dialect_files = {
     "cretan": "DATA/v2/cretan.txt",
     "cypriot": "DATA/v2/cypriot.txt",
-    "northern": "DATA/v2/nothern.txt",  # Note: typo in original filename
+    "northern": "DATA/v2/nothern.txt",
     "pontic": "DATA/v2/pontic.txt",
 }
 
@@ -114,10 +122,19 @@ standard_greek_files = [
 texts = []
 labels = []
 
+print("=" * 60)
+print("IMPORTANT: Normalizing all data to prevent spurious correlations")
+print("=" * 60)
+print("- Removing ALL punctuation from ALL dialects")
+print("- Creating uniform-length chunks (~400 chars)")
+print("- This ensures model learns linguistic features, not formatting")
+print("=" * 60)
+
 # Load Standard Greek data
-print("Loading Standard Greek data...")
+print("\nLoading Standard Greek data...")
 smg_count = 0
 smg_skipped = 0
+
 for filepath in standard_greek_files:
     print(f"  Loading {filepath}...")
     with open(filepath, "r", encoding="utf-8") as f:
@@ -137,15 +154,22 @@ for filepath in standard_greek_files:
                 smg_skipped += 1
                 continue
 
-            # Check if valid (at least 50 Greek chars)
-            if is_valid_line(line):
-                texts.append(line)
-                labels.append("standard")
-                smg_count += 1
+            # Remove punctuation
+            line = remove_punctuation(line)
+            
+            # Check if valid
+            if is_valid_chunk(line):
+                # Split into uniform chunks if text is long
+                chunks = split_into_uniform_chunks(line)
+                for chunk in chunks:
+                    if is_valid_chunk(chunk):
+                        texts.append(chunk)
+                        labels.append("standard")
+                        smg_count += 1
             else:
                 smg_skipped += 1
 
-print(f"  Loaded {smg_count} documents (skipped {smg_skipped})")
+print(f"  Loaded {smg_count} chunks (skipped {smg_skipped})")
 
 # Load dialect data
 for dialect_name, filepath in dialect_files.items():
@@ -156,129 +180,133 @@ for dialect_name, filepath in dialect_files.items():
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-        # Special handling for Cretan: split long documents into more chunks
-        if dialect_name == "cretan":
-            lines = []
-            for line in content.split("\n"):
-                line = line.strip()
-                # Skip metadata lines like "--- cleaned_vakches.txt ---"
-                if line.startswith("---") or "---" in line:
-                    dialect_skipped += 1
-                    continue
-                if is_valid_line(line):
-                    lines.append(line)
-                elif line:
-                    dialect_skipped += 1
-
-            print(f"  Found {len(lines)} valid lines before splitting")
-
-            # Calculate how many chunks we need per document to get more data
-            target_total = 2000  # Adjust this number to get more/less Cretan data
-            chunks_per_doc = max(2, target_total // len(lines)) if len(lines) > 0 else 4
-
-            print(
-                f"  Splitting long texts into ~{chunks_per_doc} chunks each to reach ~{target_total} samples"
-            )
-
-            # Split each long document into multiple chunks
-            for line in lines:
-                chunks = split_long_text_into_chunks(line, target_chunks=chunks_per_doc)
-                for chunk in chunks:
-                    if is_valid_line(chunk):
-                        texts.append(chunk)
-                        labels.append(dialect_name)
-                        dialect_count += 1
-
-        # Special handling for Pontic: split very long texts to get ~1000 samples
-        elif dialect_name == "pontic":
-            lines = []
-            for line in content.split("\n"):
-                line = line.strip()
-                if is_valid_line(line):
-                    lines.append(line)
-                elif line:
-                    dialect_skipped += 1
-
-            print(f"  Found {len(lines)} valid lines before splitting")
-
-            # Calculate how many chunks we need per document on average
-            target_total = 1000
-            chunks_per_doc = max(2, target_total // len(lines)) if len(lines) > 0 else 2
-
-            print(
-                f"  Splitting long texts into ~{chunks_per_doc} chunks each to reach ~{target_total} samples"
-            )
-
-            for line in lines:
-                # Split long texts into chunks
-                chunks = split_long_text_into_chunks(line, target_chunks=chunks_per_doc)
-                for chunk in chunks:
-                    if is_valid_line(chunk):
-                        texts.append(chunk)
-                        labels.append(dialect_name)
-                        dialect_count += 1
-
-        else:
-            # For other dialects: line by line
-            for line in content.split("\n"):
-                line = line.strip()
-                if is_valid_line(line):
-                    texts.append(line)
+        # Process line by line for all dialects
+        for line in content.split("\n"):
+            line = line.strip()
+            
+            # Skip metadata lines
+            if line.startswith("---") or "---" in line:
+                dialect_skipped += 1
+                continue
+            
+            if not line:
+                continue
+            
+            # Remove punctuation (critical for normalization!)
+            line = remove_punctuation(line)
+            
+            if not line:
+                dialect_skipped += 1
+                continue
+            
+            # Split into uniform chunks
+            chunks = split_into_uniform_chunks(line)
+            
+            for chunk in chunks:
+                if is_valid_chunk(chunk):
+                    texts.append(chunk)
                     labels.append(dialect_name)
                     dialect_count += 1
                 else:
-                    if line:  # Only count non-empty skipped lines
-                        dialect_skipped += 1
+                    dialect_skipped += 1
 
-    print(f"  Loaded {dialect_count} documents (skipped {dialect_skipped})")
+    print(f"  Loaded {dialect_count} chunks (skipped {dialect_skipped})")
 
 print(f"\n{'=' * 60}")
-print(f"Total documents loaded (before downsampling): {len(texts)}")
+print(f"Total chunks loaded (before balancing): {len(texts)}")
 print(f"{'=' * 60}")
-print(f"Documents per dialect:")
+print(f"Chunks per dialect:")
 all_dialects = ["standard", "cretan", "cypriot", "northern", "pontic"]
 for dialect in all_dialects:
     count = sum(1 for l in labels if l == dialect)
     percentage = (count / len(texts) * 100) if len(texts) > 0 else 0
     print(f"  {dialect:12s}: {count:8,} ({percentage:5.2f}%)")
 
-# Downsample Standard Greek to balance dataset
+# ========== BALANCE DATASET ==========
 import random
 
 random.seed(42)
 
 print(f"\n{'=' * 60}")
-print("Downsampling Standard Greek to 100,000 samples...")
+print("Balancing dataset...")
 print(f"{'=' * 60}")
 
-# Find indices of standard greek samples
-standard_indices = [i for i, label in enumerate(labels) if label == "standard"]
-other_indices = [i for i, label in enumerate(labels) if label != "standard"]
+# Separate by dialect
+dialect_indices = {dialect: [] for dialect in all_dialects}
+for i, label in enumerate(labels):
+    dialect_indices[label].append(i)
 
-# Sample 100,000 from standard greek
-if len(standard_indices) > 100000:
-    sampled_standard_indices = random.sample(standard_indices, 100000)
-    print(f"Downsampled Standard Greek from {len(standard_indices):,} to 100,000")
-else:
-    sampled_standard_indices = standard_indices
-    print(
-        f"Standard Greek has {len(standard_indices):,} samples (no downsampling needed)"
-    )
+# Print original counts
+print("\nOriginal counts:")
+for dialect in all_dialects:
+    count = len(dialect_indices[dialect])
+    print(f"  {dialect:12s}: {count:8,}")
 
-# Combine sampled standard with all other dialects
-selected_indices = sampled_standard_indices + other_indices
-random.shuffle(selected_indices)
+# Define target counts for each dialect
+TARGET_STANDARD = 200_000  # Majority class
+TARGET_DIALECT = 20_000    # Same for all dialects
 
-# Create new texts and labels with downsampled data
-texts = [texts[i] for i in selected_indices]
-labels = [labels[i] for i in selected_indices]
+targets = {
+    "standard": TARGET_STANDARD,
+    "cypriot": TARGET_DIALECT,
+    "cretan": TARGET_DIALECT,
+    "northern": TARGET_DIALECT,
+    "pontic": TARGET_DIALECT,
+}
 
-print(f"\nTotal documents after downsampling: {len(texts)}")
-print(f"Documents per dialect:")
+print(f"\nTarget counts:")
+for dialect, target in targets.items():
+    print(f"  {dialect:12s}: {target:8,}")
+
+# Balance each dialect
+balanced_indices = []
+
+for dialect in all_dialects:
+    indices = dialect_indices[dialect]
+    target = targets[dialect]
+    current = len(indices)
+    
+    if current >= target:
+        # Downsample
+        sampled = random.sample(indices, target)
+        print(f"\n{dialect}: Downsampling from {current:,} to {target:,}")
+    else:
+        # Upsample by sampling with replacement
+        sampled = random.choices(indices, k=target)
+        print(f"\n{dialect}: Upsampling from {current:,} to {target:,} (with replacement)")
+    
+    balanced_indices.extend(sampled)
+
+# Shuffle all indices
+random.shuffle(balanced_indices)
+
+# Create balanced texts and labels
+texts = [texts[i] for i in balanced_indices]
+labels = [labels[i] for i in balanced_indices]
+
+print(f"\n{'=' * 60}")
+print(f"Balanced dataset:")
+print(f"{'=' * 60}")
+print(f"Total chunks: {len(texts):,}")
+print(f"\nChunks per dialect:")
 for dialect in all_dialects:
     count = sum(1 for l in labels if l == dialect)
     percentage = (count / len(texts) * 100) if len(texts) > 0 else 0
     print(f"  {dialect:12s}: {count:8,} ({percentage:5.2f}%)")
+
+# Sample a few examples to verify normalization
+print(f"\n{'=' * 60}")
+print("Sample chunks (first 200 chars):")
+print(f"{'=' * 60}")
+for dialect in all_dialects:
+    dialect_samples = [texts[i] for i, l in enumerate(labels) if l == dialect]
+    if dialect_samples:
+        sample = dialect_samples[0][:200]
+        print(f"\n{dialect}:")
+        print(f"  {sample}...")
+        print(f"  Length: {len(dialect_samples[0])} chars")
+
+# ========================================
 
 # Create label mapping
 unique_labels = sorted(set(labels))
@@ -300,16 +328,15 @@ model_name = "answerdotai/ModernBERT-large"
 print(f"\nLoading model: {model_name}")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-# ========== PERFORMANCE OPTIMIZATION: Load model in bfloat16 ==========
+# Load model in bfloat16
 model = AutoModelForSequenceClassification.from_pretrained(
-    model_name,
-    num_labels=len(unique_labels),
-    id2label=id2label,
+    model_name, 
+    num_labels=len(unique_labels), 
+    id2label=id2label, 
     label2id=label2id,
-    torch_dtype=torch.bfloat16,  # Use bfloat16 for 2x speedup and half memory
+    torch_dtype=torch.bfloat16
 )
 print(f"Model loaded in bfloat16 precision for faster training")
-# ======================================================================
 
 
 # Dataset class
@@ -351,7 +378,7 @@ training_args = TrainingArguments(
     save_strategy="epoch",
     load_best_model_at_end=True,
     metric_for_best_model="accuracy",
-    bf16=True,  # ========== CHANGED: Use bfloat16 instead of fp16 ==========
+    bf16=True,
     report_to="none",
 )
 
