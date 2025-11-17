@@ -4,7 +4,7 @@ from collections import defaultdict
 # Store examples for each register-dialect combo
 examples = defaultdict(list)
 
-with open("your_file.jsonl", "r", encoding="utf-8") as f:
+with open("labeled_sentences_chunk_1.jsonl", "r", encoding="utf-8") as f:
     for line in f:
         data = json.loads(line)
 
