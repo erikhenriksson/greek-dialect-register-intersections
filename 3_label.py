@@ -27,12 +27,17 @@ os.makedirs("./cache/spacy", exist_ok=True)
 INPUT_FILE = "/scratch/project_2002026/data/hplt3_samples/ell_Grek_1M.jsonl"
 OUTPUT_FILE = "labeled_sentences.jsonl"
 MODEL_PATH = "./greek_dialect_model"
-BATCH_SIZE = 32
+BATCH_SIZE = 128  # Increased from 32 for better GPU utilization
+MAX_LENGTH = 512  # Reduced from 8192 - sentences are typically much shorter
 REGISTER_THRESHOLD = 0.4
 
 print("=" * 60)
 print("Greek Dialect Sentence Labeling")
 print("=" * 60)
+
+# Performance optimizations
+torch.set_float32_matmul_precision("high")  # Use TF32 on Ampere+ GPUs
+print("Set matmul precision to 'high' for TF32 acceleration")
 
 # Load the fine-tuned model
 print(f"\nLoading model from {MODEL_PATH}...")
@@ -41,6 +46,15 @@ model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 model.eval()
+
+# Compile model for faster inference (PyTorch 2.0+)
+try:
+    print("Compiling model with torch.compile for faster inference...")
+    model = torch.compile(model, mode="reduce-overhead")
+    print("Model compilation successful!")
+except Exception as e:
+    print(f"Could not compile model (PyTorch 2.0+ required): {e}")
+    print("Continuing without compilation...")
 
 # Get label mapping
 id2label = model.config.id2label
@@ -66,7 +80,8 @@ if pipes_to_disable:
 
 print(f"\nProcessing: {INPUT_FILE}")
 print(f"Output: {OUTPUT_FILE}")
-print(f"Batch size: {BATCH_SIZE}")
+print(f"Batch size: {BATCH_SIZE} (increased for better GPU utilization)")
+print(f"Max sequence length: {MAX_LENGTH} tokens (optimized for sentences)")
 print(f"Register threshold: {REGISTER_THRESHOLD}")
 print(f"Device: {device}")
 print()
@@ -79,7 +94,11 @@ def predict_dialects_batch(sentences):
 
     # Tokenize batch
     encodings = tokenizer(
-        sentences, truncation=True, max_length=8192, padding=True, return_tensors="pt"
+        sentences,
+        truncation=True,
+        max_length=MAX_LENGTH,
+        padding=True,
+        return_tensors="pt",
     )
 
     # Move to device
