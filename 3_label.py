@@ -55,8 +55,14 @@ except:
     os.system("python -m spacy download el_core_news_sm")
     nlp = spacy.load("el_core_news_sm")
 
-# Only use sentencizer component for speed
-nlp.disable_pipes([pipe for pipe in nlp.pipe_names if pipe != "sentencizer"])
+# Make sure sentencizer is in the pipeline
+if "sentencizer" not in nlp.pipe_names:
+    nlp.add_pipe("sentencizer")
+
+# Disable other pipes for speed, but keep sentencizer
+pipes_to_disable = [pipe for pipe in nlp.pipe_names if pipe != "sentencizer"]
+if pipes_to_disable:
+    nlp.disable_pipes(pipes_to_disable)
 
 print(f"\nProcessing: {INPUT_FILE}")
 print(f"Output: {OUTPUT_FILE}")
