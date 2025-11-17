@@ -194,7 +194,7 @@ with (
                     "text": sentence_text,
                     "registers": registers,
                     "web_register_probs": web_register_probs,  # Keep full probs for backup
-                    "dialect_probs": dialect_probs,
+                    "dialect_probs": {k: round(v, 2) for k, v in dialect_probs.items()},
                 }
                 fout.write(json.dumps(result, ensure_ascii=False) + "\n")
                 sentence_count += 1
