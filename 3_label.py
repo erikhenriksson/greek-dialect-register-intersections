@@ -6,6 +6,23 @@ import torch
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+# Set ALL cache directories to local disk to avoid quota issues
+os.environ["TRANSFORMERS_CACHE"] = "./cache/transformers"
+os.environ["HF_HOME"] = "./cache/huggingface"
+os.environ["TORCH_HOME"] = "./cache/torch"
+os.environ["TRITON_CACHE_DIR"] = "./cache/triton"
+os.environ["XDG_CACHE_HOME"] = "./cache"
+os.environ["HF_HUB_CACHE"] = "./cache/hub"
+os.environ["SPACY_DATA"] = "./cache/spacy"
+
+# Create cache directories
+os.makedirs("./cache/transformers", exist_ok=True)
+os.makedirs("./cache/huggingface", exist_ok=True)
+os.makedirs("./cache/torch", exist_ok=True)
+os.makedirs("./cache/triton", exist_ok=True)
+os.makedirs("./cache/hub", exist_ok=True)
+os.makedirs("./cache/spacy", exist_ok=True)
+
 # Configuration
 INPUT_FILE = "/scratch/project_2002026/data/hplt3_samples/ell_Grek_1M.jsonl"
 OUTPUT_FILE = "labeled_sentences.jsonl"
