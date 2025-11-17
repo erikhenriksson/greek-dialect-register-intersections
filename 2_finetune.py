@@ -150,7 +150,7 @@ for dialect_name, filepath in dialect_files.items():
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-        # Special handling for Cretan: split long documents in half
+        # Special handling for Cretan: split long documents into more chunks
         if dialect_name == "cretan":
             lines = []
             for line in content.split("\n"):
@@ -166,9 +166,18 @@ for dialect_name, filepath in dialect_files.items():
 
             print(f"  Found {len(lines)} valid lines before splitting")
 
-            # Split each long document in half
+            # Calculate how many chunks we need per document to get more data
+            # You can adjust target_total to get the desired amount of Cretan samples
+            target_total = 500  # Adjust this number to get more/less Cretan data
+            chunks_per_doc = max(2, target_total // len(lines)) if len(lines) > 0 else 4
+
+            print(
+                f"  Splitting long texts into ~{chunks_per_doc} chunks each to reach ~{target_total} samples"
+            )
+
+            # Split each long document into multiple chunks
             for line in lines:
-                chunks = split_long_text_into_chunks(line, target_chunks=2)
+                chunks = split_long_text_into_chunks(line, target_chunks=chunks_per_doc)
                 for chunk in chunks:
                     if is_valid_line(chunk):
                         texts.append(chunk)
