@@ -23,8 +23,12 @@ FILES = {
     ],
     "cretan": ["dialects/Cretan_final.txt"],
     "cypriot": ["dialects/Cypriot_final.txt"],
+    "eptanisian": ["dialects/Eptanisian_final.txt"],
+    "griko": ["dialects/Griko_final.txt"],
+    "maniot": ["dialects/Maniot_final.txt"],
     "northern": ["dialects/Northern_final.txt"],
     "pontic": ["dialects/Pontic_final.txt"],
+    "tsakonian": ["dialects/Tsakonian_final.txt"],
 }
 
 texts = []
@@ -32,7 +36,7 @@ labels = []
 
 print("Loading data...")
 
-# Load Standard Greek (v1 files - unchanged)
+# Load Standard Greek (v1 files)
 for filepath in FILES["standard"]:
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
@@ -44,7 +48,7 @@ for filepath in FILES["standard"]:
                 labels.append("standard")
 
 # Load dialect files (already cleaned and sentence-based)
-for dialect in ["cretan", "cypriot", "northern", "pontic"]:
+for dialect in ["cretan", "cypriot", "eptanisian", "griko", "maniot", "northern", "pontic", "tsakonian"]:
     for filepath in FILES[dialect]:
         with open(filepath, "r", encoding="utf-8") as f:
             for line in f:
@@ -54,7 +58,7 @@ for dialect in ["cretan", "cypriot", "northern", "pontic"]:
                     labels.append(dialect)
 
 print(f"\nTotal samples: {len(texts):,}")
-for dialect in ["standard", "cretan", "cypriot", "northern", "pontic"]:
+for dialect in ["standard", "cretan", "cypriot", "eptanisian", "griko", "maniot", "northern", "pontic", "tsakonian"]:
     count = sum(1 for l in labels if l == dialect)
     print(f"  {dialect}: {count:,}")
 
