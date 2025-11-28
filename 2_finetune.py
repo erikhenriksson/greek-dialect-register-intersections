@@ -21,10 +21,10 @@ FILES = {
         "DATA/v1/clean_file_SMG_part2.txt",
         "DATA/v1/clean_file_SMG_part3.txt",
     ],
-    "cretan": ["DATA/v2/cretan.txt"],
-    "cypriot": ["DATA/v2/cypriot.txt"],
-    "northern": ["DATA/v2/nothern.txt"],
-    "pontic": ["DATA/v2/pontic.txt"],
+    "cretan": ["dialects/Cretan_final.txt"],
+    "cypriot": ["dialects/Cypriot_final.txt"],
+    "northern": ["dialects/Northern_final.txt"],
+    "pontic": ["dialects/Pontic_final.txt"],
 }
 
 texts = []
@@ -32,7 +32,7 @@ labels = []
 
 print("Loading data...")
 
-# Load Standard Greek (v1 files)
+# Load Standard Greek (v1 files - unchanged)
 for filepath in FILES["standard"]:
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
@@ -43,22 +43,8 @@ for filepath in FILES["standard"]:
                 texts.append(line)
                 labels.append("standard")
 
-# Load Cretan (needs sentence splitting)
-for filepath in FILES["cretan"]:
-    with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
-        # Remove metadata lines
-        content = re.sub(r"---.*?---", "", content)
-        # Split into sentences (simple split on common punctuation)
-        sentences = re.split(r"[.!;]+", content)
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if sentence:
-                texts.append(sentence)
-                labels.append("cretan")
-
-# Load other dialects (already good)
-for dialect in ["cypriot", "northern", "pontic"]:
+# Load dialect files (already cleaned and sentence-based)
+for dialect in ["cretan", "cypriot", "northern", "pontic"]:
     for filepath in FILES[dialect]:
         with open(filepath, "r", encoding="utf-8") as f:
             for line in f:
