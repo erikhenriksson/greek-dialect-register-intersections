@@ -132,13 +132,13 @@ for dialect in dialect_labels:
     sampled_dialect_sizes[dialect] = sampled_size
     indices_to_keep.extend(sampled_indices)
 
-# STEP 2: Calculate standard cap based on SAMPLED dialect sizes
-max_sampled_dialect_size = max(sampled_dialect_sizes.values())
-max_standard_samples = 10 * max_sampled_dialect_size
+# STEP 2: Calculate standard cap based on TOTAL sampled dialect data
+total_dialect_samples = sum(sampled_dialect_sizes.values())
+max_standard_samples = 10 * total_dialect_samples
 
 print(f"\n{'=' * 60}")
-print(f"Largest SAMPLED dialect size: {max_sampled_dialect_size:,}")
-print(f"Max samples for standard: {max_standard_samples:,}")
+print(f"Total SAMPLED dialect samples: {total_dialect_samples:,}")
+print(f"Max samples for standard (10x): {max_standard_samples:,}")
 print(f"{'=' * 60}")
 
 # STEP 3: Sample standard
@@ -169,6 +169,12 @@ print("=" * 60)
 dialect_counts_after = Counter(labels)
 for dialect in sorted(dialect_counts_after.keys()):
     print(f"  {dialect}: {dialect_counts_after[dialect]:,}")
+
+# Calculate and display ratios
+total_dialects_final = sum(dialect_counts_after[d] for d in dialect_labels)
+standard_final = dialect_counts_after["standard"]
+ratio = standard_final / total_dialects_final if total_dialects_final > 0 else 0
+print(f"\nFinal ratio - Standard:Dialects = {ratio:.2f}:1")
 
 # Create label mapping
 unique_labels = sorted(set(labels))
