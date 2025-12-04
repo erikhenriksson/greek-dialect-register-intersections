@@ -83,33 +83,24 @@ print("=" * 60)
 
 # Get dialect counts (excluding standard)
 dialect_labels = [
-    d
-    for d in [
-        "cretan",
-        "cypriot",
-        "eptanisian",
-        "griko",
-        "maniot",
-        "northern",
-        "pontic",
-        "tsakonian",
-    ]
+    "cretan",
+    "cypriot",
+    "eptanisian",
+    "griko",
+    "maniot",
+    "northern",
+    "pontic",
+    "tsakonian",
 ]
 dialect_counts_only = {d: dialect_counts[d] for d in dialect_labels}
 
-# Find smallest and largest dialect sizes
+# Find smallest dialect size
 min_dialect_size = min(dialect_counts_only.values())
-max_dialect_size = max(dialect_counts_only.values())
+print(f"\nSmallest dialect size (original): {min_dialect_size:,}")
 
-print(f"\nSmallest dialect size: {min_dialect_size:,}")
-print(f"Largest dialect size: {max_dialect_size:,}")
-
-# Calculate max samples per class
+# Calculate max samples per dialect
 max_dialect_samples = 2 * min_dialect_size
-max_standard_samples = 10 * max_dialect_size
-
-print(f"\nMax samples per dialect: {max_dialect_samples:,}")
-print(f"Max samples for standard: {max_standard_samples:,}")
+print(f"Max samples per dialect: {max_dialect_samples:,}")
 
 # Create a mapping of indices for each label
 label_indices = {}
@@ -118,29 +109,55 @@ for idx, label in enumerate(labels):
         label_indices[label] = []
     label_indices[label].append(idx)
 
-# Sample indices to keep
+# STEP 1: Sample dialects first
 indices_to_keep = []
+sampled_dialect_sizes = {}
 
-for label in sorted(set(labels)):
-    available_indices = label_indices[label]
+for dialect in dialect_labels:
+    available_indices = label_indices[dialect]
 
-    if label == "standard":
-        max_samples = max_standard_samples
-    else:
-        max_samples = max_dialect_samples
-
-    if len(available_indices) <= max_samples:
+    if len(available_indices) <= max_dialect_samples:
         # Keep all samples
         sampled_indices = available_indices
-        print(f"\n{label}: keeping all {len(available_indices):,} samples")
+        sampled_size = len(available_indices)
+        print(f"\n{dialect}: keeping all {sampled_size:,} samples")
     else:
         # Randomly sample
-        sampled_indices = random.sample(available_indices, max_samples)
+        sampled_indices = random.sample(available_indices, max_dialect_samples)
+        sampled_size = max_dialect_samples
         print(
-            f"\n{label}: sampling {max_samples:,} from {len(available_indices):,} samples"
+            f"\n{dialect}: sampling {sampled_size:,} from {len(available_indices):,} samples"
         )
 
+    sampled_dialect_sizes[dialect] = sampled_size
     indices_to_keep.extend(sampled_indices)
+
+# STEP 2: Calculate standard cap based on SAMPLED dialect sizes
+max_sampled_dialect_size = max(sampled_dialect_sizes.values())
+max_standard_samples = 10 * max_sampled_dialect_size
+
+print(f"\n{'=' * 60}")
+print(f"Largest SAMPLED dialect size: {max_sampled_dialect_size:,}")
+print(f"Max samples for standard: {max_standard_samples:,}")
+print(f"{'=' * 60}")
+
+# STEP 3: Sample standard
+available_standard_indices = label_indices["standard"]
+
+if len(available_standard_indices) <= max_standard_samples:
+    # Keep all samples
+    sampled_standard_indices = available_standard_indices
+    print(f"\nstandard: keeping all {len(available_standard_indices):,} samples")
+else:
+    # Randomly sample
+    sampled_standard_indices = random.sample(
+        available_standard_indices, max_standard_samples
+    )
+    print(
+        f"\nstandard: sampling {max_standard_samples:,} from {len(available_standard_indices):,} samples"
+    )
+
+indices_to_keep.extend(sampled_standard_indices)
 
 # Apply sampling
 texts = [texts[i] for i in indices_to_keep]
