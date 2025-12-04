@@ -1,5 +1,7 @@
 import os
+import random
 import re
+from collections import Counter
 
 os.environ["HF_HOME"] = "./model_cache"
 
@@ -13,6 +15,9 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+
+# Set seed for reproducibility
+random.seed(42)
 
 # File paths
 FILES = {
@@ -48,7 +53,16 @@ for filepath in FILES["standard"]:
                 labels.append("standard")
 
 # Load dialect files (already cleaned and sentence-based)
-for dialect in ["cretan", "cypriot", "eptanisian", "griko", "maniot", "northern", "pontic", "tsakonian"]:
+for dialect in [
+    "cretan",
+    "cypriot",
+    "eptanisian",
+    "griko",
+    "maniot",
+    "northern",
+    "pontic",
+    "tsakonian",
+]:
     for filepath in FILES[dialect]:
         with open(filepath, "r", encoding="utf-8") as f:
             for line in f:
@@ -57,10 +71,87 @@ for dialect in ["cretan", "cypriot", "eptanisian", "griko", "maniot", "northern"
                     texts.append(line)
                     labels.append(dialect)
 
-print(f"\nTotal samples: {len(texts):,}")
-for dialect in ["standard", "cretan", "cypriot", "eptanisian", "griko", "maniot", "northern", "pontic", "tsakonian"]:
-    count = sum(1 for l in labels if l == dialect)
-    print(f"  {dialect}: {count:,}")
+print(f"\nTotal samples (before balancing): {len(texts):,}")
+dialect_counts = Counter(labels)
+for dialect in sorted(dialect_counts.keys()):
+    print(f"  {dialect}: {dialect_counts[dialect]:,}")
+
+# Apply sampling strategy
+print("\n" + "=" * 60)
+print("Applying sampling strategy...")
+print("=" * 60)
+
+# Get dialect counts (excluding standard)
+dialect_labels = [
+    d
+    for d in [
+        "cretan",
+        "cypriot",
+        "eptanisian",
+        "griko",
+        "maniot",
+        "northern",
+        "pontic",
+        "tsakonian",
+    ]
+]
+dialect_counts_only = {d: dialect_counts[d] for d in dialect_labels}
+
+# Find smallest and largest dialect sizes
+min_dialect_size = min(dialect_counts_only.values())
+max_dialect_size = max(dialect_counts_only.values())
+
+print(f"\nSmallest dialect size: {min_dialect_size:,}")
+print(f"Largest dialect size: {max_dialect_size:,}")
+
+# Calculate max samples per class
+max_dialect_samples = 2 * min_dialect_size
+max_standard_samples = 10 * max_dialect_size
+
+print(f"\nMax samples per dialect: {max_dialect_samples:,}")
+print(f"Max samples for standard: {max_standard_samples:,}")
+
+# Create a mapping of indices for each label
+label_indices = {}
+for idx, label in enumerate(labels):
+    if label not in label_indices:
+        label_indices[label] = []
+    label_indices[label].append(idx)
+
+# Sample indices to keep
+indices_to_keep = []
+
+for label in sorted(set(labels)):
+    available_indices = label_indices[label]
+
+    if label == "standard":
+        max_samples = max_standard_samples
+    else:
+        max_samples = max_dialect_samples
+
+    if len(available_indices) <= max_samples:
+        # Keep all samples
+        sampled_indices = available_indices
+        print(f"\n{label}: keeping all {len(available_indices):,} samples")
+    else:
+        # Randomly sample
+        sampled_indices = random.sample(available_indices, max_samples)
+        print(
+            f"\n{label}: sampling {max_samples:,} from {len(available_indices):,} samples"
+        )
+
+    indices_to_keep.extend(sampled_indices)
+
+# Apply sampling
+texts = [texts[i] for i in indices_to_keep]
+labels = [labels[i] for i in indices_to_keep]
+
+print("\n" + "=" * 60)
+print(f"Total samples (after balancing): {len(texts):,}")
+print("=" * 60)
+dialect_counts_after = Counter(labels)
+for dialect in sorted(dialect_counts_after.keys()):
+    print(f"  {dialect}: {dialect_counts_after[dialect]:,}")
 
 # Create label mapping
 unique_labels = sorted(set(labels))
