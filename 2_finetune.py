@@ -94,10 +94,13 @@ dialect_labels = [
 ]
 dialect_counts_only = {d: dialect_counts[d] for d in dialect_labels}
 
-# Find largest dialect size for upsampling target
-max_dialect_size = max(dialect_counts_only.values())
-print(f"\nLargest dialect size (original): {max_dialect_size:,}")
-print(f"Upsampling all dialects to: {max_dialect_size:,}")
+# Find smallest dialect size
+min_dialect_size = min(dialect_counts_only.values())
+print(f"\nSmallest dialect size (original): {min_dialect_size:,}")
+
+# Calculate max samples per dialect
+max_dialect_samples = 2 * min_dialect_size
+print(f"Max samples per dialect: {max_dialect_samples:,}")
 
 # Create a mapping of indices for each label
 label_indices = {}
@@ -112,19 +115,18 @@ sampled_dialect_sizes = {}
 
 for dialect in dialect_labels:
     available_indices = label_indices[dialect]
-    original_size = len(available_indices)
 
-    if original_size >= max_dialect_size:
-        # Keep all samples (no downsampling)
+    if len(available_indices) <= max_dialect_samples:
+        # Keep all samples
         sampled_indices = available_indices
-        sampled_size = original_size
+        sampled_size = len(available_indices)
         print(f"\n{dialect}: keeping all {sampled_size:,} samples")
     else:
-        # Upsample with replacement
-        sampled_indices = random.choices(available_indices, k=max_dialect_size)
-        sampled_size = max_dialect_size
+        # Randomly sample
+        sampled_indices = random.sample(available_indices, max_dialect_samples)
+        sampled_size = max_dialect_samples
         print(
-            f"\n{dialect}: upsampling from {original_size:,} to {sampled_size:,} samples"
+            f"\n{dialect}: sampling {sampled_size:,} from {len(available_indices):,} samples"
         )
 
     sampled_dialect_sizes[dialect] = sampled_size
